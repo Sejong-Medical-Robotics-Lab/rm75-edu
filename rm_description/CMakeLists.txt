@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.8)
+project(rm_description)
+find_package(ament_cmake REQUIRED)
+# 교육용 슬림 발췌: rm_75 관련 urdf·meshes 만 설치 (원본 저장소에는 전 모델 포함)
+install(DIRECTORY urdf meshes DESTINATION share/${PROJECT_NAME})
+ament_package()

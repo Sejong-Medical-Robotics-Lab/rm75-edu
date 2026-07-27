@@ -1,0 +1,12 @@
+# demo 모드 시작 자세 = SRDF 'home' (테이블을 내려보는 준비 자세)
+# tools/fk_check.py 의 HOME 과 동일해야 한다
+initial_positions:
+  joint1: 0
+  joint2: 0.8395
+  joint3: 0
+  joint4: 1.4442
+  joint5: 0
+  joint6: 0.8513
+  joint7: 0
+  gripper_finger1_joint: 0.04
+  gripper_finger2_joint: 0.04

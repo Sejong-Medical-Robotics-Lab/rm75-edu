@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rm75_edu">
+    <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+
+    <!-- RealMan RM75 본체 (제조사 URDF, 기본형 Link7) -->
+    <xacro:include filename="$(find rm_description)/urdf/rm_75.urdf.xacro" />
+
+    <!-- ── 교육용 병렬 2지 그리퍼 (연구실 구성의 단순화 모델) ──
+         손바닥 + 손가락 2개(프리즈매틱, 각 0~0.04 m 바깥으로) + TCP.
+         두 손가락 사이 폭 ≈ 2 x 관절값, 최대 0.08 m.
+         TCP(gripper_tcp)는 Link7에서 공구 +z로 0.11 m — tools/fk_check.py 의
+         TCP_OFFSET 과 반드시 일치해야 한다. -->
+    <link name="gripper_palm">
+      <inertial>
+        <origin xyz="0 0 0.025" rpy="0 0 0"/>
+        <mass value="0.35"/>
+        <inertia ixx="3e-4" ixy="0" ixz="0" iyy="3e-4" iyz="0" izz="3e-4"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0.025" rpy="0 0 0"/>
+        <geometry><box size="0.08 0.08 0.05"/></geometry>
+        <material name="gripper_grey"><color rgba="0.35 0.35 0.38 1"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0.025" rpy="0 0 0"/>
+        <geometry><box size="0.08 0.08 0.05"/></geometry>
+      </collision>
+    </link>
+    <joint name="gripper_palm_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <parent link="Link7"/>
+      <child link="gripper_palm"/>
+    </joint>
+
+    <link name="gripper_finger1">
+      <inertial>
+        <origin xyz="0 0 0.03" rpy="0 0 0"/>
+        <mass value="0.05"/>
+        <inertia ixx="2e-5" ixy="0" ixz="0" iyy="2e-5" iyz="0" izz="2e-5"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0.03" rpy="0 0 0"/>
+        <geometry><box size="0.02 0.012 0.06"/></geometry>
+        <material name="gripper_dark"><color rgba="0.15 0.15 0.17 1"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0.03" rpy="0 0 0"/>
+        <geometry><box size="0.02 0.012 0.06"/></geometry>
+      </collision>
+    </link>
+    <joint name="gripper_finger1_joint" type="prismatic">
+      <origin xyz="0 0.006 0.05" rpy="0 0 0"/>
+      <parent link="gripper_palm"/>
+      <child link="gripper_finger1"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="0" upper="0.04" effort="30" velocity="0.1"/>
+    </joint>
+
+    <link name="gripper_finger2">
+      <inertial>
+        <origin xyz="0 0 0.03" rpy="0 0 0"/>
+        <mass value="0.05"/>
+        <inertia ixx="2e-5" ixy="0" ixz="0" iyy="2e-5" iyz="0" izz="2e-5"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0.03" rpy="0 0 0"/>
+        <geometry><box size="0.02 0.012 0.06"/></geometry>
+        <material name="gripper_dark2"><color rgba="0.15 0.15 0.17 1"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0.03" rpy="0 0 0"/>
+        <geometry><box size="0.02 0.012 0.06"/></geometry>
+      </collision>
+    </link>
+    <joint name="gripper_finger2_joint" type="prismatic">
+      <origin xyz="0 -0.006 0.05" rpy="0 0 0"/>
+      <parent link="gripper_palm"/>
+      <child link="gripper_finger2"/>
+      <axis xyz="0 -1 0"/>
+      <limit lower="0" upper="0.04" effort="30" velocity="0.1"/>
+    </joint>
+
+    <link name="gripper_tcp"/>
+    <joint name="gripper_tcp_joint" type="fixed">
+      <origin xyz="0 0 0.11" rpy="0 0 0"/>
+      <parent link="Link7"/>
+      <child link="gripper_tcp"/>
+    </joint>
+
+    <!-- ros2_control (mock) -->
+    <xacro:include filename="rm75_edu.ros2_control.xacro" />
+    <xacro:rm75_edu_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+</robot>
