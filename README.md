@@ -178,3 +178,24 @@ rm75-edu/
 제조사 패키지(`rm_description`·`rm_ros_interfaces`·`rm_driver`)는
 RealMan ros2_rm_robot 발췌 — **`THIRD_PARTY_NOTICES.md` 를 반드시 확인**
 (업스트림 라이선스 표기 관련 주의사항 포함).
+
+
+
+cd ~/ros2_rm_robot/rm_install/scripts
+sudo bash moveit2_install.sh
+
+sudo apt update
+
+# MoveIt2 본체
+sudo apt install ros-jazzy-moveit -y
+
+# ros2_control + Gazebo 연동
+sudo apt install \
+    ros-jazzy-controller-interface \
+    ros-jazzy-controller-manager \
+    ros-jazzy-controller-manager-msgs \
+    ros-jazzy-joint-state-broadcaster \
+    ros-jazzy-joint-trajectory-controller \
+    ros-jazzy-ros-gz-sim \
+    ros-jazzy-ros-gz-bridge \
+    ros-jazzy-gz-ros2-control -y
