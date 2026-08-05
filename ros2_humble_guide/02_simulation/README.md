@@ -10,6 +10,14 @@
 > 명령이 실패하면 당황하지 말고 `ls ~/ros2_ws/src/ros2_rm_robot/<패키지>/launch/`(또는 `/urdf/`)로
 > 실제 파일명을 먼저 확인한다.
 
+> 💡 **`cat > ... << 'EOF'` 블록을 붙여넣을 때** — 이 문서에는 파일을 통째로 만드는 명령이 여러 번 나온다.
+> 터미널에 붙여넣으면 화면이 겹쳐 보이거나 중간에서 끊길 수 있다. 붙여넣은 뒤 반드시
+> `tail -5 <파일>`로 마지막 줄까지 들어갔는지 확인하고, 깨졌다면 `nano <파일>`로 직접 편집한다.
+
+> ⚠️ **이 문서는 Jazzy 환경에서 검증한 내용을 Humble로 옮긴 것이다.** 아래 항목은 Humble에서
+> 아직 확인되지 않았으므로, 진행하다 다르게 나오면 멘토에게 공유해 문서를 고친다.
+> — RViz 종료 현상(3-1), Setup Assistant 생성물의 결함 2건(3-5), 각종 실측값.
+
 ---
 
 ## 1. EG2-4C2 그리퍼 모델 결합
@@ -41,9 +49,12 @@ sed -i 's|package://rm_Lifting_robot_75B_jaw_description/meshes/|package://rm_de
    $DST/urdf/jaw.urdf.xacro
 
 # 확인: 경로가 바뀌었는지, STL이 7개인지
-grep mesh $DST/urdf/jaw.urdf.xacro | head -3
-ls $DST/meshes/4C2_*.STL | wc -l    # 7 이 나와야 함
+grep mesh_path $DST/urdf/jaw.urdf.xacro   # package://rm_description/meshes/ 로 바뀌어야 함
+ls $DST/meshes/4C2_*.STL | wc -l          # 7 이 나와야 함
 ```
+
+> 💡 압축 파일 안에는 이동 대차(AGV)·리프팅 몸체까지 들어 있지만, 우리가 쓰는 것은
+> **그리퍼 부분(`4C2_*`)뿐**이다. 그래서 STL 7개와 `jaw.urdf.xacro` 하나만 뽑아 온다.
 
 ### 1-2. 팔 + 그리퍼 결합 URDF 만들기
 
@@ -83,9 +94,23 @@ EOF
 - `xyz="0 0 -0.009"` : 그리퍼 베이스와 플랜지 면을 맞추는 실측 보정값. 값을 잘못 주면(예: `0.03`)
   RViz에서 그리퍼가 팔에서 **떨어져 떠 있는 것처럼** 보인다 — 그때는 이 z값을 조금씩 조정한다.
 - `rpy="0 0 -1.57"` : 그리퍼 개폐 방향 정렬.
-- `grasp_tcp` : Link7(플랜지)에서 z축 +0.12 m — 손가락 패드 중앙 근처. 실물 실측 후 미세 조정 가능.
+- `grasp_tcp` : Link7(플랜지)에서 z축 +0.12 m — 두 손가락 패드 중앙. **근거를 직접 확인하려면**
+  1-4에서 RViz를 띄운 뒤 **그리퍼를 닫은 상태**(`jaw_Joint1 = 0`)에서:
+
+  ```bash
+  ros2 run tf2_ros tf2_echo Link7 4C2_Link5    # 패드 링크: z≈0.106, y≈0.018
+  ```
+
+  패드가 z=0.106에서 시작하므로 0.12는 패드 구간 안에 든다.
+  (첫 줄의 `Invalid frame ID "Link7"`은 TF 트리가 채워지기 전 한 번 뜨는 것이므로 무시)
+  실물 실측 후 미세 조정 가능하며, **이 값이 픽앤플레이스 파지 정확도를 좌우한다.**
 - 팔 본체 include의 파일명(`rm_75.urdf.xacro`)이 다르면
   `ls ~/ros2_ws/src/ros2_rm_robot/rm_description/urdf/`로 실제 이름을 확인해 맞춘다.
+
+> 💡 **그리퍼 조인트는 6개지만 실제로 구동되는 것은 `jaw_Joint1` 하나다.**
+> 나머지 5개(`jaw_Joint2`~`jaw_Joint6`)는 `<mimic>`으로 `jaw_Joint1`을 따라가는 링키지다
+> — 모터 하나로 두 손가락이 함께 움직이는 구조다. 그래서 이후 슬라이더에도, MoveIt 설정에도
+> `jaw_Joint1`만 나타난다.
 
 ### 1-3. 빌드 & 검증 (RViz 켜기 전에)
 
@@ -104,6 +129,15 @@ ls $(ros2 pkg prefix rm_description)/share/rm_description/meshes/4C2_*.STL | wc 
 
 `check_urdf`가 `base_link`를 루트로 하는 링크 트리를 출력하고 오류가 없으면 통과.
 **여기서 실패하면 RViz를 켜도 안 된다** — 오류 메시지에 나온 링크/조인트 이름부터 고친다.
+
+트리 끝부분이 아래처럼 나오면 결합이 제대로 된 것이다 (`Link7`에 자식이 둘):
+
+```
+                            child(1):  Link7
+                                child(1):  4C2_baselink
+                                    ...
+                                child(2):  grasp_tcp
+```
 
 ### 1-4. 표시용 launch 만들기 + 눈으로 확인
 
@@ -161,8 +195,11 @@ ros2 launch rm_description rm_75_jaw_display.launch.py
 
 - [ ] RViz에 팔 + 그리퍼가 붙어서 보인다 (떠 있거나 파묻혀 있으면 1-2의 origin z 조정)
 - [ ] 슬라이더 창에 관절 8개: `joint1`~`joint7` + `jaw_Joint1`
-- [ ] `jaw_Joint1` 슬라이더로 그리퍼가 열리고 닫힌다
+      (mimic 조인트 5개는 GUI가 자동으로 숨긴다)
+- [ ] `jaw_Joint1` 슬라이더로 그리퍼가 열리고 닫힌다 (0 = 닫힘, 0.82 = 최대 열림)
 - [ ] RViz의 Displays → TF를 켜면 `grasp_tcp` 프레임이 손가락 사이에 보인다
+- [ ] 터미널의 `[kdl_parser] The root link base_link has an inertia ...` **WARN은 정상**이다
+      — RealMan 원본 URDF에서 오는 것으로 표시·계획에 영향이 없다. 이후 문서에서도 계속 나타난다.
 - 로봇이 안 보이면: Fixed Frame이 `base_link`인지, RobotModel 디스플레이가 켜져 있는지 확인
 
 <details>
@@ -188,22 +225,67 @@ ros2 run rviz2 rviz2 -d $(ros2 pkg prefix rm_description)/share/rm_description/r
 ros2 launch rm_gazebo gazebo_75_demo.launch.py
 ```
 
-- Humble에서는 **Gazebo Classic**이 뜬다. **첫 실행은 모델 로딩 때문에 1~2분 걸릴 수 있다** — 기다린다.
-- Gazebo의 팔 모델은 **팔 단독**이다. 1절의 그리퍼 결합 모델은 RViz/MoveIt(demo)용이고,
-  Gazebo에서는 팔의 궤적 실행을 검증하는 용도로 쓴다.
+> ⚠️ **이 저장소의 humble 브랜치는 Gazebo Classic이 아니라 새 Gazebo(gz sim)를 쓴다.**
+> launch 파일이 `gz_ros2_control`과 `ros_gz_sim`을 요구하며, 없으면 아래 오류로 즉시 중단된다:
+>
+> ```
+> RuntimeError: Missing ROS package 'gz_ros2_control'.
+> Install 'ros-humble-gz-ros2-control' or the shim package 'ros-humble-ign-ros2-control'
+> ```
+>
+> 이 경우 01_setup 3절로 돌아가 다음을 설치한다:
+>
+> ```bash
+> sudo apt install -y ros-humble-ros-gz ros-humble-gz-ros2-control
+> # 위가 없으면 Humble 기본인 Ignition 계열로:
+> sudo apt install -y ros-humble-ros-ign ros-humble-ign-ros2-control
+> ```
 
-새 터미널에서 컨트롤러가 정상 로드됐는지 확인:
+- **첫 실행은 모델·리소스 로딩 때문에 1~2분 걸릴 수 있다** — 창이 검게 멈춰 있어도 기다린다.
+- **그리퍼가 보이지 않는 것이 정상이다.** Gazebo는 `rm_gazebo/config/gazebo_75_description.urdf.xacro`라는
+  **별도의 모델 파일**을 쓰며, 1절에서 `rm_description`에 만든 결합 모델과는 다른 파일이다.
+  그리퍼까지 포함한 계획은 3-4에서 만들 `rm_75_jaw_config`에서 다룬다.
+
+새 터미널에서 컨트롤러와 상태 발행 주기를 확인:
 
 ```bash
-ros2 control list_controllers
+ros2 control list_controllers   # joint_state_broadcaster, rm_group_controller 모두 active
+ros2 topic hz /joint_states     # 100 Hz (ros2_controllers.yaml의 update_rate와 일치)
 ```
 
-`joint_state_broadcaster`와 `rm_group_controller`가 **active**면 정상.
+> 💡 이 **100 Hz**는 03_practice에서 실기체 값과 비교하게 된다. 적어 두자.
 
-> 🔧 Gazebo가 비정상 종료되어 다시 안 뜰 때:
+> 🔧 Gazebo가 비정상 종료되어 다시 안 뜰 때 (새 Gazebo는 `gzserver`/`gzclient` 프로세스가 아니다):
 > ```bash
-> pkill -9 gzserver; pkill -9 gzclient
+> pkill -9 -f "gz sim"
+> # Ignition 계열이면
+> pkill -9 -f "ign gazebo"
 > ```
+
+### 💡 RViz와 Gazebo는 역할이 다르다
+
+|  | RViz | Gazebo |
+|---|---|---|
+| 역할 | **시각화** (받아서 그림) | **물리 시뮬레이션** (계산해서 내보냄) |
+| 중력·관성·마찰 | 없음 | 있음 |
+| `/joint_states` | 구독만 | 발행 |
+
+RViz에서 팔이 움직이는 것은 RViz가 계산해서가 아니라, **누군가 발행한 `/joint_states`를 그대로 그리는 것**이다.
+그 값을 만드는 주체는 상황마다 다르다.
+
+```
+MoveIt ──액션──▶ joint_trajectory_controller ──▶ [하드웨어 인터페이스] ──▶ 팔
+                                                        ↑
+                              여기만 갈아끼운다: FakeSystem / GazeboSim / 실기체
+```
+
+- **3-2·3-5의 demo** → `mock_components/GenericSystem`(FakeSystem). 명령을 그대로 상태로 되돌려주므로 오차가 없다.
+- **2절·3-3의 Gazebo** → `gz_ros2_control/GazeboSimSystem`. 중력·관성을 계산하므로 추종 오차가 생긴다
+  (3-3에서 허용 오차를 완화하는 이유가 이것이다).
+- **03_practice의 실기체** → RealMan 하드웨어 인터페이스.
+
+**위 두 층(MoveIt, 컨트롤러)은 세 경우 모두 동일하다.** 토픽·액션·컨트롤러 이름이 바뀌지 않으므로,
+4절에서 익힌 명령이 03의 실기체에서 그대로 통한다.
 
 ---
 
@@ -216,6 +298,19 @@ ros2 control list_controllers
 - MoveIt2의 기본 플래너(OMPL)는 확률적 탐색이라 **같은 목표라도 매번 다른 경로**가 나올 수 있다
   → 그래서 실기체에서는 Execute 전 잔상 확인을 절대 생략할 수 없다.
 - Planning Scene에 등록되지 않은 실물은 플래너에게 **보이지 않는다.**
+
+> ⚠️ **RViz 종료 주의 (3장 전체 공통)** — Planning Scene에 충돌 물체(박스 등)가 있는 상태에서
+> **주황색 마커를 드래그하면 RViz가 종료될 수 있다**(세그폴트). Jazzy에서 확인된 현상이며
+> 그래픽 드라이버와는 무관하다. **Humble에서의 재현 여부는 미확인이지만, 아래 순서를 지키면
+> 어느 쪽이든 안전하다.**
+>
+> 1. 마커로 목표를 먼저 정하고 **Plan**
+> 2. 그 다음에 박스를 추가
+> 3. 마커는 그대로 두고 **Plan만 다시**
+>
+> 목표를 바꾸려면 **박스를 먼저 지운 뒤** 마커를 움직인다.
+> 종료되어도 저장된 것은 손상되지 않으므로 launch를 다시 실행하면 된다.
+> (Humble에서 종료되지 않는다면 멘토에게 알려 주면 이 경고를 뺄 수 있다.)
 
 ### 3-2. 기본 demo (팔 단독) — 마우스로 하는 플래닝
 
@@ -230,34 +325,62 @@ ros2 launch rm_75_config demo.launch.py
 |---|---|---|
 | ① | 주황 마커(공=위치, 고리=자세)를 끌어 목표 지정 → **Plan** | 서로 다른 3곳에서 계획 성공 (잔상 애니메이션) |
 | ② | Plan 성공한 계획을 **Execute** | 이동 후 로봇 자세 = 방금의 주황색 자세 |
-| ③ | 일부러 불가능한 목표(너무 먼 곳·바닥 아래·몸통 뒤)로 Plan **실패** 관찰 | 실패 메시지 2개 이상 읽어 보기 |
-| ④ | 같은 목표를 5회 Plan | 경로가 매번 같은가/다른가 관찰 (플래너의 무작위성) |
-| ⑤ | Scene 탭에서 박스 장애물 추가 후 다시 Plan | 경로가 장애물을 피해 달라지는 것 확인 |
-| ⑥ | Planning 탭의 Goal State에서 named target(`zero` 등) 선택 → Plan & Execute | 미리 정의된 자세로 이동 |
+| ③ | 같은 목표를 5회 **Plan만** 반복 (**Execute 금지** — 실행하면 출발 자세가 바뀌어 조건이 달라진다) | 잔상 경로가 매번 다른 것 관찰 (플래너의 무작위성) |
+| ④ | 마커로 목표 지정 → **Plan** → Scene 탭에서 박스를 경로에 걸치게 추가 → **마커는 그대로 두고 Plan만 다시** | 같은 목표인데 경로가 장애물을 피해 달라짐 |
+| ⑤ | ④의 박스를 **주황색 목표 로봇과 겹치도록** 옮기고 Plan | 계획 **실패**. 좌측에 `Failed`, 터미널에 실패 메시지 |
+| ⑥ | Planning 탭의 Goal State에서 named target(`zero` / `forward`) 선택 → Plan & Execute | 미리 정의된 자세로 이동 |
 
-named target 목록은 SRDF에서 확인할 수 있다:
+> ⚠️ ④⑤에서 **박스를 추가한 뒤에는 마커를 드래그하지 말 것** (3-1의 공통 주의사항 참고).
+> 목표를 바꾸려면 박스를 먼저 지운다.
+
+⑤의 터미널 메시지를 꼭 읽어 보자:
+
+```
+Unable to find solution by any of the threads in 0.0002 seconds
+Planner 'OMPL' failed with error code FAILURE
+```
+
+**Planning Time 5초를 다 쓰지도 않고 즉시 실패**한 점이 핵심이다. 목표 자세 자체가 장애물과
+충돌하므로 탐색을 시작할 수조차 없다 — "도달은 가능하지만 계획은 불가능"한 상태다.
+
+> 💡 RViz의 마커는 **IK가 풀리는 범위 밖으로는 끌리지 않는다.** 그래서 "너무 먼 곳"으로 옮겨
+> 실패를 만드는 것은 불가능하고, 위처럼 장애물을 이용해야 한다.
+
+이 SRDF에 정의된 named target은 `zero`와 `forward` **두 개**다. 직접 확인:
 
 ```bash
-cat ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/config/rm_75_description.srdf
+grep -A10 'group_state' ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/config/rm_75_description.srdf
 ```
 
 ### 3-3. Gazebo + MoveIt2 연동 — 계획이 물리 세계에서 실행되는가
 
-**사전 조정 (권장)** — Gazebo 물리 시뮬에서는 궤적 추종 오차가 생기는데, 컨트롤러의 허용 오차가
-너무 빡빡하면 실행이 중간에 중단된다(`PATH_TOLERANCE_VIOLATED`). 미리 완화해 둔다:
+**사전 조정 (해당하는 경우만)** — Gazebo 물리 시뮬에서는 궤적 추종 오차가 생기는데, 컨트롤러의
+허용 오차가 너무 빡빡하면 실행이 중간에 중단된다(`PATH_TOLERANCE_VIOLATED`).
+먼저 설정 파일에 해당 항목이 있는지 확인한다:
+
+```bash
+grep -n "trajectory:" ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/config/ros2_controllers.yaml
+```
+
+- **출력이 있으면** 아래로 완화한 뒤 재빌드한다.
+- **출력이 없으면** 이 브랜치에는 허용 오차 제약 자체가 없다는 뜻이므로 **이 단계 전체를 건너뛴다.**
+  (3-3 실행 중 `PATH_TOLERANCE_VIOLATED`가 뜨면 그때 돌아와 `constraints` 항목을 추가한다.)
 
 ```bash
 sed -i 's/trajectory: 0.05/trajectory: 0.1/' \
   ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/config/ros2_controllers.yaml
 
-# 반영 확인 (trajectory: 0.1 이 보이면 성공. 해당 줄이 원래 없다면 이 단계는 건너뜀)
-grep -A2 "joint1:" ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/config/ros2_controllers.yaml
+grep -n "trajectory:" ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/config/ros2_controllers.yaml
 
 # yaml은 스폰 시점에 읽히므로 빌드 필수
 cd ~/ros2_ws
 colcon build --packages-select rm_75_config
 source install/setup.bash
 ```
+
+> 💡 Gazebo가 이 파일을 읽는 이유 — `rm_gazebo`의 모델 xacro가
+> `$(find rm_75_config)/config/ros2_controllers.yaml`을 참조하도록 되어 있다.
+> **install 경로에서 읽으므로 수정 후 재빌드가 반드시 필요하다.**
 
 실행 (내부적으로 Gazebo를 먼저 띄운 뒤 MoveIt을 연결한다):
 
@@ -266,8 +389,10 @@ ros2 launch rm_bringup rm_75_gazebo.launch.py
 ```
 
 - RViz에서 Plan & Execute → **Gazebo 안의 팔이 실제로 움직이는지** 확인.
-- RViz MotionPlanning 패널의 Planning 탭에서 **Velocity/Accel Scaling을 0.1~0.3**으로 낮춰 실행하는
-  습관을 여기서부터 들인다 (실기체에서 그대로 쓸 습관).
+  두 화면의 팔은 서로 다른 로봇이 아니라, **같은 `/joint_states`를 Gazebo가 발행하고 RViz가 그리는 것**이다.
+- RViz Planning 탭의 **Velocity/Accel Scaling이 0.10인지 확인**한다 — 설정 파일의
+  `default_velocity_scaling_factor` 값이 반영된 기본값이다. 실기체에서도 이 값으로 시작하며,
+  올리더라도 0.3을 넘기지 않는 습관을 여기서부터 들인다.
 - 새 터미널에서 `ros2 control list_controllers`로 컨트롤러 active 재확인 가능.
 
 ### 3-4. 그리퍼 포함 MoveIt 설정 만들기 — Setup Assistant로 `rm_75_jaw_config` 생성
@@ -275,54 +400,87 @@ ros2 launch rm_bringup rm_75_gazebo.launch.py
 1절에서 만든 결합 모델(`rm_75_with_jaw.urdf.xacro`)로 **그리퍼까지 계획 대상에 포함하는**
 MoveIt 설정 패키지를 만든다. 뒤의 픽앤플레이스 시뮬레이션이 전부 이 위에서 돈다.
 
+앞 절의 Gazebo·RViz는 모두 닫고 시작한다.
+
 ```bash
+pkill -9 -f "gz sim"
 ros2 launch moveit_setup_assistant setup_assistant.launch.py
 ```
 
 **Setup Assistant 진행 순서** (화면 좌측 탭 순서대로):
 
 1. **Create New MoveIt Configuration Package**
-   - URDF 경로: `~/ros2_ws/install/rm_description/share/rm_description/urdf/rm_75_with_jaw.urdf.xacro`
-     (반드시 **install 경로** — 그래서 1-3에서 빌드를 먼저 했다) → Load Files
+   - URDF 경로: `/home/<사용자명>/ros2_ws/install/rm_description/share/rm_description/urdf/rm_75_with_jaw.urdf.xacro`
+     (반드시 **install 경로** — 그래서 1-3에서 빌드를 먼저 했다. `~`는 GUI에서 풀리지 않으니 절대 경로로 입력)
+     → Load Files → 우측 3D 뷰에 **그리퍼가 붙은 팔**이 보이면 성공
 2. **Self-Collisions** — Sampling Density 기본값 → Generate Collision Matrix
-3. **Virtual Joints** (선택) — Name `virtual_joint` / Child `base_link` / Parent `world` / Type `fixed`
+
+   > 💡 `4C2_Link5` ↔ `4C2_Link6`이 **분홍색(Default in collision)** 으로 잡히는 것은 정상이다.
+   > 그리퍼가 완전히 닫힌 기본 자세에서 두 손가락 패드가 맞닿기 때문이다. 체크된 상태
+   > (= 충돌 검사 제외)로 두어야 이후 `closed` 자세의 계획이 성공한다.
+   > 하단 로그에 `Always in collision : 0`이 나오면 모델에 결함이 없다는 뜻이다.
+3. **Virtual Joints** (**권장**) — Name `virtual_joint` / Child `base_link` / Parent `world` / Type `fixed`
+
+   > 💡 없어도 동작하지만, 실행할 때마다 `No root/virtual joint specified in SRDF` 경고가 뜬다.
+   > 넣어 두면 사라지고, 픽앤플레이스에서 `world` 기준 좌표를 쓸 때도 깔끔하다.
 4. **Planning Groups** — 두 개 생성
    - `rm_group` : Kinematic Solver `kdl_kinematics_plugin/KDLKinematicsPlugin`,
      Search Resolution 0.005, Timeout 0.05, Group Default Planner `RRTConnect`
      → **Add Kin. Chain**: Base Link `base_link`, Tip Link `Link7` → Save
    - `gripper` : Kinematic Solver **None**
      → **Add Joints**: `jaw_Joint1`만 선택 → Save
+     (목록에 `jaw_Joint2`~`6`은 나타나지 않는다 — mimic 조인트라 자동으로 걸러진다)
 5. **Robot Poses** — 4개 등록
    - `zero` (rm_group, 슬라이더 전부 0)
-   - `forward` (rm_group, 앞으로 뻗은 자연스러운 자세 — 정확한 값은 중요하지 않음. 관절 한계에서 먼 자세면 됨)
+   - `forward` (rm_group) — 기존 `rm_75_config`와 같은 값을 입력한다:
+     `joint2 = 0.8395`, `joint4 = 1.4442`, `joint6 = 0.8513`, 나머지 0
+     (같은 이름이 같은 자세를 가리켜야 두 패키지를 오갈 때 헷갈리지 않는다)
    - `open` (gripper, `jaw_Joint1` = 0.82 — 슬라이더 최대)
    - `closed` (gripper, `jaw_Joint1` = 0)
 6. **End Effectors** — Name `gripper_ee` / Group `gripper` / Parent Link `Link7` / Parent Group `rm_group`
 7. **ros2_control URDF Modification** — Command Interfaces ☑ position,
-   State Interfaces ☑ position ☑ velocity.
+   State Interfaces ☑ position ☑ velocity → **Add interfaces**
    관절 목록에 `joint1`~`joint7` + `jaw_Joint1` **총 8개**가 모두 포함되어야 한다.
 8. **ROS 2 Controllers** — "Auto Add JointTrajectoryController Controllers For Each Planning Group" 클릭
    → `rm_group_controller`(7관절), `gripper_controller`(`jaw_Joint1`) 생성 확인
 9. **MoveIt Controllers** — "Auto Add FollowJointTrajectory Controllers For Each Planning Group" 클릭
 10. **Author Information** — 이름·이메일 **필수** (비우면 마지막에 생성 거부됨. 아무 값이나 가능)
-11. **Configuration Files** — 저장 경로는 **공백 없는 절대 경로**로 정확히 입력:
-    `/home/<사용자명>/ros2_ws/src/rm_75_jaw_config`
-12. **Generate Package** → 100% → 종료
+11. **Configuration Files** — 저장 경로를 입력란에 **직접 타이핑**한다.
+    아직 존재하지 않는 폴더이므로 **Browse로는 찾을 수 없다.**
+    공백 없는 절대 경로: `/home/<사용자명>/ros2_ws/src/rm_75_jaw_config`
 
-생성 위치 확인 (경로에 공백이 섞이면 엉뚱한 곳에 생긴다):
+    > ⚠️ **`ros2_rm_robot/` 안에 만들지 말 것** — 우리가 만든 패키지를 RealMan 저장소 안에 두면
+    > `git pull` 시 충돌하고, 저장소를 다시 클론하면 사라진다. 반드시 `src/` **바로 아래**에 만든다.
+12. **Generate Package** 클릭 → 진행률 **100% 확인** → 그 **다음에** Exit Setup Assistant
+
+    > ⚠️ 두 버튼이 나란히 있다. **Generate Package를 먼저 누르지 않고 Exit하면 아무것도 생성되지 않으며,
+    > 설정도 저장되지 않아 1단계부터 다시 해야 한다.**
+
+생성 위치 확인:
 
 ```bash
-ls ~/ros2_ws/src/rm_75_jaw_config
-# 없다면: ls ~/ros2_ws/ 로 이상한 이름의 폴더를 찾아 mv로 옮긴다
+find ~/ros2_ws/src -maxdepth 3 -name "rm_75_jaw_config" -type d
+ls ~/ros2_ws/src/rm_75_jaw_config    # CMakeLists.txt  config  launch  package.xml
 ```
+
+경로가 `~/ros2_ws/src/rm_75_jaw_config`가 아니면 `mv`로 옮긴다.
 
 ### 3-5. 생성 직후 필수 보정 2가지 (첫 실행 전에!)
 
 Setup Assistant가 생성한 파일 그대로 실행하면 두 가지 문제가 난다.
 **첫 실행 전에** 아래 두 파일을 덮어써서 예방한다.
 
-**① `joint_limits.yaml`** — 속도/가속도 한계가 정수(`1`)로 생성되어
-`expected [double] got [integer]` 오류로 죽는 문제. 소수점 값으로 교체:
+**① `joint_limits.yaml`** — Setup Assistant가 `max_acceleration: 0`(전 관절),
+`jaw_Joint1`의 `max_velocity: 1`(정수)로 생성한다. 이대로 두면 **경로 계획은 성공하지만
+시간 궤적화 단계에서** `No acceleration limit was defined for joint jaw_Joint1` 오류로 실패한다.
+
+먼저 생성된 원본을 확인해 두자 (Humble의 MoveIt 버전에 따라 다를 수 있다):
+
+```bash
+cat ~/ros2_ws/src/rm_75_jaw_config/config/joint_limits.yaml
+```
+
+아래로 교체:
 
 ```bash
 cat > ~/ros2_ws/src/rm_75_jaw_config/config/joint_limits.yaml << 'EOF'
@@ -334,47 +492,58 @@ joint_limits:
   jaw_Joint1:
     has_velocity_limits: true
     max_velocity: 1.0
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 2.0
   joint1:
     has_velocity_limits: true
     max_velocity: 3.14
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
   joint2:
     has_velocity_limits: true
     max_velocity: 3.14
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
   joint3:
     has_velocity_limits: true
     max_velocity: 3.92
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
   joint4:
     has_velocity_limits: true
     max_velocity: 3.92
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
   joint5:
     has_velocity_limits: true
     max_velocity: 3.92
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
   joint6:
     has_velocity_limits: true
     max_velocity: 3.92
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
   joint7:
     has_velocity_limits: true
     max_velocity: 3.92
-    has_acceleration_limits: false
+    has_acceleration_limits: true
     max_acceleration: 5.0
 EOF
+
+tail -5 ~/ros2_ws/src/rm_75_jaw_config/config/joint_limits.yaml   # joint7까지 들어갔는지 확인
 ```
 
-**② `moveit_controllers.yaml`** — Plan은 되는데 Execute가 실패하는 문제(컨트롤러 매핑 누락). 교체:
+> ⚠️ `has_acceleration_limits`는 반드시 **`true`** 여야 한다. `false`로 두면 아래
+> `max_acceleration` 값이 무시되어 위 오류가 그대로 발생한다.
+
+> 💡 이 실패는 3-1에서 배운 "① IK → ② 경로 계획 → ③ 시간 궤적화" 중 **③에서만 걸린 것**이다.
+> 터미널 로그에서 `Calling Planner 'OMPL'` 다음에는 에러가 없다가
+> `AddTimeOptimalParameterization`에서 실패하는 순서를 확인해 보자.
+
+**② `moveit_controllers.yaml`** — Setup Assistant 생성본에는 `action_ns`와 `default`가 빠져 있다.
+`action_ns`가 없으면 MoveIt이 컨트롤러의 액션 서버 이름을 조립하지 못해 **Plan은 되는데 Execute가
+실패한다.** 교체:
 
 ```bash
 cat > ~/ros2_ws/src/rm_75_jaw_config/config/moveit_controllers.yaml << 'EOF'
@@ -406,6 +575,8 @@ moveit_simple_controller_manager:
     joints:
       - jaw_Joint1
 EOF
+
+grep -c action_ns ~/ros2_ws/src/rm_75_jaw_config/config/moveit_controllers.yaml   # 2 가 나와야 함
 ```
 
 빌드 후 실행:
@@ -423,6 +594,8 @@ ros2 launch rm_75_jaw_config demo.launch.py
 - [ ] MotionPlanning → Planning Group을 `rm_group` ↔ `gripper`로 전환 가능
 - [ ] `gripper` 그룹에서 Goal State `open` / `closed` 선택 → Plan & Execute → 그리퍼 개폐
 - [ ] `rm_group`에서 마커 이동 → Plan & Execute 정상
+- [ ] 새 터미널에서 `ros2 control list_controllers` → `joint_state_broadcaster`,
+      `rm_group_controller`, `gripper_controller` **3개 모두 active**
 - 💡 그리퍼가 **비대칭/유령처럼 겹쳐 보이면**: Displays → MotionPlanning → Planning Request →
   **Query Goal State 체크 해제** (목표 상태의 잔상이 겹쳐 보이는 것으로, 버그가 아님)
 
@@ -430,26 +603,35 @@ ros2 launch rm_75_jaw_config demo.launch.py
 
 | 증상 | 원인 / 처방 |
 |---|---|
-| `max_velocity ... expected [double] got [integer]` | 3-5 ①의 joint_limits.yaml 보정 누락 → 보정 후 **재빌드** |
-| Plan 성공, Execute 실패 | 3-5 ②의 moveit_controllers.yaml 보정 누락 → 보정 후 재빌드 |
+| `No acceleration limit was defined for joint ...` | 3-5 ①의 joint_limits.yaml 보정 누락, 또는 `has_acceleration_limits`가 `false` → 수정 후 **재빌드** |
+| `max_velocity ... expected [double] got [integer]` | 같은 원인 — 3-5 ①로 교체 후 재빌드 |
+| Plan 성공, Execute 실패 | 3-5 ②의 `action_ns` 누락 → 보정 후 재빌드 |
+| 박스를 놓고 마커를 끌었더니 RViz가 꺼짐 | 3-1의 공통 주의사항 참고. 순서를 지키면 발생하지 않는다 |
 | Plan이 계속 실패 | 세 갈래 점검 — ① 도달(팔 길이 밖?) ② 자세(무리한 orientation?) ③ 충돌(Scene 장애물과 겹침?) — 목표를 로봇 가까이로 옮겨 성공부터 재현 |
 | RViz에 로봇 안 보임 | Fixed Frame `base_link`? MotionPlanning 디스플레이 체크? |
+| Setup Assistant에서 저장 폴더를 못 찾음 | 새로 만드는 폴더라 Browse로는 안 나온다 — 경로를 직접 타이핑 (3-4의 11단계) |
+| Generate Package를 눌렀는데 폴더가 없음 | Exit를 먼저 눌렀을 가능성 — `find ~/ros2_ws/src -name "rm_75_jaw_config"`로 확인 후 없으면 3-4를 다시 진행 |
 | Gazebo 연동에서 실행이 중간에 멈춤 | 3-3의 허용 오차 완화 + 속도 스케일 0.1로 낮춰 재시도 |
+| `Missing ROS package 'gz_ros2_control'` | 2절 상단의 경고 참고 — Gazebo 패키지 설치 후 재시도 |
 
 ---
 
 ## 4. 토픽·서비스·액션 다뤄보기 (시뮬레이션 팔)
 
 MoveIt 없이, ROS2의 세 가지 통신 방식으로 팔과 직접 대화해 본다.
-**준비**: Gazebo만 띄운다.
+**준비**: 앞 절의 창을 모두 닫고 Gazebo만 띄운다.
 
 ```bash
+pkill -9 -f "gz sim"
 ros2 launch rm_gazebo gazebo_75_demo.launch.py
 ```
 
 > ⚠️ **이 절의 직접 명령은 MoveIt을 거치지 않는다 = 충돌 검사가 없다.**
 > 시뮬레이션 전용 실습이며, 실기체에서 이 방식으로 임의 궤적을 보내는 것은 금지다.
 > (같은 채널이라도 "읽기"는 언제나 안전하고, "쓰기"는 계획을 거쳐야 한다.)
+
+> 💡 Gazebo로 하는 이유 — demo(mock)로도 명령은 전부 돌아가지만, `effort` 값이나 궤적 추종 오차처럼
+> **물리가 있어야 보이는 것**이 나타나지 않는다. 03에서 실기체와 비교하려면 물리 시뮬 쪽이 맞다.
 
 ### 4-1. 토픽 — 상태 읽기
 
@@ -518,7 +700,7 @@ ros2 action send_goal /rm_group_controller/follow_joint_trajectory \
 ```
 
 `--feedback`으로 실행 중 진행 상황이 스트리밍되는 것이 토픽 pub과의 결정적 차이다.
-(MoveIt의 Execute도 내부적으로 이 액션을 쓴다.)
+(MoveIt의 Execute도 내부적으로 이 액션을 쓴다 — 3-5 ②에서 맞춰 준 `action_ns`가 바로 이 이름이다.)
 
 ### 4-4. 서비스 — 요청과 응답
 
