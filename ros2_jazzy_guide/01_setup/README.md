@@ -101,6 +101,7 @@ rosdep install --from-paths src --ignore-src -r -y
 >
 > 💡 24.04에서는 `pip install`이 시스템 보호로 거부된다 — 혹시 pip를 쓸 일이 생기면
 > `pip install <패키지> --break-system-packages`처럼 옵션을 붙인다 (이 가이드 자체는 pip 설치가 필요 없다).
+> 
 > ⚠️ **`warehouse_ros_mongo` ERROR는 무시한다** — `rosdep install`이 아래처럼
 > 빨간 ERROR를 9개(`rm_75_config`, `rm_gazebo` 등) 쏟아내지만 **정상이다.**
 >
