@@ -77,17 +77,50 @@ git -C ~/ros2_ws/src/ros2_rm_robot branch --show-current   # humble 이 나와�
 
 ## 3. 의존 패키지 설치
 
+> ⚠️ **가장 중요한 부분이다.** 이 저장소의 humble 브랜치는 **Gazebo Classic이 아니라
+> 새 Gazebo(gz sim) 계열을 요구한다.** 인터넷의 Humble 자료 대부분이 Gazebo Classic
+> (`gazebo-ros-pkgs`, `gazebo-ros2-control`)을 안내하지만, **그것을 설치하면 02 시뮬레이션 2절에서
+> 아래 오류로 막힌다:**
+>
+> ```
+> RuntimeError: Missing ROS package 'gz_ros2_control'.
+> Install 'ros-humble-gz-ros2-control' or the shim package 'ros-humble-ign-ros2-control'
+> ```
+
+### 3-1. 어떤 Gazebo 패키지가 있는지 먼저 확인
+
+Humble은 시기에 따라 `gz-` 계열과 `ign-` 계열 중 하나만 제공될 수 있다. 먼저 검색한다:
+
 ```bash
+apt-cache search ros-humble-ros-gz | head
+apt-cache search ros-humble-gz-ros2-control | head
+apt-cache search ros-humble-ros-ign | head
+apt-cache search ros-humble-ign-ros2-control | head
+```
+
+검색 결과에 따라 아래 A 또는 B를 고른다. **둘 다 나오면 A를 쓴다.**
+
+### 3-2. 패키지 설치
+
+```bash
+# 공통
 sudo apt install -y \
   ros-humble-moveit \
-  ros-humble-gazebo-ros-pkgs \
-  ros-humble-gazebo-ros2-control \
   ros-humble-ros2-control \
   ros-humble-ros2-controllers \
   ros-humble-joint-state-publisher-gui \
   ros-humble-xacro
 
-# 저장소가 요구하는 나머지 의존성 자동 설치
+# ── A. gz 계열이 있는 경우 (권장) ──
+sudo apt install -y ros-humble-ros-gz ros-humble-gz-ros2-control
+
+# ── B. ign 계열만 있는 경우 ──
+sudo apt install -y ros-humble-ros-ign ros-humble-ign-ros2-control
+```
+
+이어서 저장소가 요구하는 나머지 의존성을 자동 설치한다:
+
+```bash
 cd ~/ros2_ws
 rosdep install --from-paths src --ignore-src -r -y
 ```
@@ -95,17 +128,26 @@ rosdep install --from-paths src --ignore-src -r -y
 | 패키지 | 용도 |
 |---|---|
 | `ros-humble-moveit` | 모션 플래닝 전체 (RViz 플러그인, Setup Assistant 포함) |
-| `ros-humble-gazebo-ros-pkgs` | **Gazebo Classic** + ROS 브리지 — Humble의 기본 물리 시뮬레이터 |
-| `ros-humble-gazebo-ros2-control` | Gazebo Classic 안에서 ros2_control 컨트롤러를 돌리는 플러그인 |
+| `ros-humble-ros-gz` (또는 `-ros-ign`) | **새 Gazebo** + ROS 브리지. `ros_gz_sim`을 제공한다 |
+| `ros-humble-gz-ros2-control` (또는 `-ign-ros2-control`) | 새 Gazebo 안에서 ros2_control 컨트롤러를 돌리는 플러그인 |
 | `ros-humble-ros2-control` / `-controllers` | `joint_state_broadcaster`, `joint_trajectory_controller` 등 |
 | `joint-state-publisher-gui` | 관절 슬라이더 GUI (모델 확인용) |
 | `xacro` | URDF 매크로 처리기 |
 
-> ⚠️ **Jazzy(작성자 리허설 환경)와 다른 부분** — Jazzy는 새 Gazebo(`ros-jazzy-ros-gz`,
-> `ros-jazzy-gz-ros2-control`)를 쓰지만 Humble은 **Gazebo Classic**
-> (`ros-humble-gazebo-ros-pkgs`, `ros-humble-gazebo-ros2-control`)을 쓴다.
-> 인터넷에서 찾은 새 Gazebo용 명령(`ros-gz` 계열)을 접두어만 바꿔 실행하면 안 된다 — 위 명령을 그대로 사용할 것.
->
+### 3-3. 설치 확인
+
+02에서 막히지 않도록 **여기서 미리 확인**한다. 두 줄 모두 경로가 나와야 한다:
+
+```bash
+source /opt/ros/humble/setup.bash
+ros2 pkg prefix ros_gz_sim
+ros2 pkg prefix gz_ros2_control
+```
+
+`Package not found`가 나오면 3-1로 돌아가 다른 계열을 설치한다.
+`ign` 계열만 설치한 경우 `gz_ros2_control`이 없을 수 있는데, 그때는 02 시뮬레이션 2절의
+안내를 참고해 shim 패키지를 추가한다.
+
 > 💡 22.04에서는 `pip install`이 그대로 동작한다 — 24.04처럼 `--break-system-packages`
 > 옵션이 필요 없다 (이 가이드 자체는 pip 설치가 필요 없다).
 >
@@ -143,6 +185,10 @@ sudo bash lib_install.sh
 ldconfig -p | grep api_cpp    # libapi_cpp.so => /usr/local/lib/... 가 보여야 함
 ```
 
+> 💡 이 스크립트는 아키텍처(x86_64 / arm64)를 판별해 맞는 `libapi_cpp.so`를 `/usr/local/lib/`에
+> 복사하고 `ldconfig`를 갱신한다. **워크스페이스 밖(시스템 경로)에 설치되므로**
+> 나중에 `~/ros2_ws`를 지워도 라이브러리는 남는다.
+
 ---
 
 ## 5. 워크스페이스 빌드
@@ -162,6 +208,7 @@ source install/setup.bash
 - 마지막에 `Summary: NN packages finished`가 나오고 `failed`가 없으면 성공이다.
   (`N package had stderr output`은 노란 경고가 있었다는 뜻일 뿐 — 실패가 아니다.)
 - 첫 전체 빌드는 몇 분 걸린다.
+- 오류만 골라 보려면: `colcon build 2>&1 | grep -iE 'error|failed'`
 
 ---
 
@@ -244,6 +291,8 @@ ls ~/ros2_ws/src/ros2_rm_robot/rm_moveit2_config/rm_75_config/launch/
 | `ros2 launch` 시 패키지/launch를 못 찾음 | 그 터미널에서 source 했는가 (6절의 bashrc 등록 여부) |
 | `sudo rosdep init` 오류 | 이미 초기화된 것 — 무시하고 `rosdep update`만 실행 |
 | `rosdep install`에서 빨간 ERROR | `warehouse_ros_mongo` 관련이면 무시 (3절 참고) — 마지막 줄이 successfully면 성공 |
+| 02에서 `Missing ROS package 'gz_ros2_control'` | 3절의 Gazebo 계열을 잘못 골랐다 — 3-1로 돌아가 검색 후 재설치, 3-3으로 확인 |
+| `Unable to locate package ros-humble-gz-...` | 그 계열이 이 배포판에 없는 것 — 3-2의 B(ign 계열)로 설치 |
 | colcon 빌드가 멈추거나 PC가 느려짐 | 메모리 부족 — `colcon build --executor sequential`로 재시도 |
 | `lib_install.sh`에서 `not found` 오류 | 저장소 업데이트로 라이브러리 폴더 이름이 바뀐 경우 — `ls`로 실제 폴더명 확인 후 멘토에게 공유 |
 | RViz/Gazebo가 검게 뜨거나 깨짐 | 그래픽 드라이버 문제. NVIDIA 드라이버 업데이트 직후라면 커널 모듈과 라이브러리 버전 불일치이므로 `sudo reboot` |
