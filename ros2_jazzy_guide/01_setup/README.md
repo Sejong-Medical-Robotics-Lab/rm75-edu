@@ -101,6 +101,22 @@ rosdep install --from-paths src --ignore-src -r -y
 >
 > 💡 24.04에서는 `pip install`이 시스템 보호로 거부된다 — 혹시 pip를 쓸 일이 생기면
 > `pip install <패키지> --break-system-packages`처럼 옵션을 붙인다 (이 가이드 자체는 pip 설치가 필요 없다).
+> ⚠️ **`warehouse_ros_mongo` ERROR는 무시한다** — `rosdep install`이 아래처럼
+> 빨간 ERROR를 9개(`rm_75_config`, `rm_gazebo` 등) 쏟아내지만 **정상이다.**
+>
+> ```
+> ERROR: the following packages/stacks could not have their rosdep keys resolved
+> rm_75_config: Cannot locate rosdep definition for [warehouse_ros_mongo]
+> ...
+> Continuing to install resolvable dependencies...
+> #All required rosdeps installed successfully   ← 이 줄이 나오면 성공
+> ```
+>
+> 마지막 줄 `#All required rosdeps installed successfully`만 확인하면 된다.
+> MoveIt이 계획 결과를 MongoDB에 저장하는 **선택 기능**인데 우분투 apt에 없는
+> 패키지라 rosdep이 키를 찾지 못하는 것이고, 이번 실습에서는 쓰지 않는다.
+> (MoveIt Setup Assistant가 config 패키지를 생성할 때 자동으로 넣는 항목이라
+> RealMan 저장소의 모든 기종 config에 들어 있다.)
 
 ---
 
@@ -135,6 +151,14 @@ source install/setup.bash
 
 ## 6. 터미널 환경 자동 등록
 
+> 💡 **이미 등록해 둔 적이 있다면 이 절은 건너뛴다.** 아래 명령은 `>>`로 줄을
+> 덧붙이므로 두 번 실행하면 같은 줄이 중복된다(동작에는 문제없지만 지저분하다).
+> 먼저 확인하는 습관을 들이자:
+>
+> ```bash
+> grep -n 'setup.bash' ~/.bashrc
+> ```
+
 ```bash
 echo "source /opt/ros/jazzy/setup.bash"    >> ~/.bashrc
 echo "source ~/ros2_ws/install/setup.bash" >> ~/.bashrc
@@ -152,17 +176,27 @@ source ~/.bashrc
 ros2 pkg list | grep rm_
 ```
 
-아래 패키지들이 보이면 성공 (버전에 따라 `rm_example`, `rm_control` 등이 추가로 보일 수 있음):
+아래처럼 20개 안팎의 패키지가 보이면 성공이다.
 
 ```
-rm_75_config        ← rm_moveit2_config 안의 MoveIt 설정
-rm_bringup
-rm_description
-rm_driver
-rm_gazebo
-rm_ros_interfaces
+rm_63_config, rm_65_config, rm_75_config ← 기종별 MoveIt 설정 (우리 기체는 rm_75_config)
+rm_eco62_config, rm_eco63_config, rm_eco65_config
+rm_gen72_config, rm_rx75_config ← 저장소에 포함된 다른 기종용 (무시)
+rm_bringup, rm_description, rm_driver
+rm_gazebo, rm_moveit2, rm_ros_interfaces
+rm_control, rm_example, rm_doc rm_install
 ...
 ```
+
+> 💡 **config가 9개나 나오는 것이 정상이다** — RealMan 저장소 하나가 전 기종을
+> 담고 있기 때문이다. 우리가 쓸 것은 `rm_75_config` 뿐이고 나머지는 건드리지 않는다.
+>
+> 💡 예제 노드는 이름에 `rm_`이 없어 위 grep에 걸리지 않는다. 함께 보려면:
+>
+> ```bash
+> ros2 pkg list | grep -E 'rm_|arm_|_control'
+> # control_arm_move, get_arm_state, force_position_control 등이 추가로 보인다
+> ```
 
 각 패키지의 launch 파일 이름이 궁금하면 언제든 아래처럼 직접 확인한다 (이후 문서 전체의 원칙):
 
@@ -170,6 +204,23 @@ rm_ros_interfaces
 ls ~/ros2_ws/src/ros2_rm_robot/rm_gazebo/launch/
 ls ~/ros2_ws/src/ros2_rm_robot/rm_bringup/launch/
 ```
+
+파일이 60개 이상 쏟아지는데, 대부분 다른 기종용이다. 이름 규칙만 알면 된다.
+
+| 규칙 | 의미 |
+|---|---|
+| `_63_`, `_65_`, `_75_`, `_eco*`, `_gen72_`, `_rx75_` | 기종 — **우리는 `_75_`** |
+| `_6f_`, `_6fb_` | 6축 힘센서 장착형(RM75-6F) 전용 — **우리 기체는 접미사 없는 쪽** |
+
+이번 실습에서 실제로 쓸 파일은 다음 다섯 개다 (02·03에서 다시 만난다).
+
+| 용도 | 파일 |
+|---|---|
+| MoveIt2 demo (RViz만, 물리 없음) | `rm_75_config/launch/demo.launch.py` |
+| Gazebo 단독 | `rm_gazebo/launch/gazebo_75_demo.launch.py` |
+| Gazebo + MoveIt2 | `rm_75_config/launch/gazebo_moveit_demo.launch.py` |
+| 실기체 bringup | `rm_bringup/launch/rm_75_bringup.launch.py` |
+| 실기체 + MoveIt2 | `rm_75_config/launch/real_moveit_demo.launch.py` |
 
 ---
 
