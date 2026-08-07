@@ -33,23 +33,23 @@ RealMan이 공개한 URDF 변환 저장소에 EG2-4C2가 결합된 모델의 압
 여기서 메시(STL)와 그리퍼 xacro만 뽑아 `rm_description`에 넣는다.
 
 ```bash
-우cd /tmp
-현git clone https://github.com/RealManRobot/URDF-to-XACRO.git
-수cd URDF-to-XACRO
-교unzip -o rm_Lifting_robot_75B_jaw_description.zip
+cd /tmp
+git clone https://github.com/RealManRobot/URDF-to-XACRO.git
+cd URDF-to-XACRO
+unzip -o rm_Lifting_robot_75B_jaw_description.zip
 
-수SRC=rm_Lifting_robot_75B_jaw_description
-님DST=~/ros2_ws/src/ros2_rm_robot/rm_description
+SRC=rm_Lifting_robot_75B_jaw_description
+DST=~/ros2_ws/src/ros2_rm_robot/rm_description
 
-존cp $SRC/meshes/4C2_*.STL $DST/meshes/
-경cp $SRC/urdf/jaw.urdf.xacro $DST/urdf/
+cp $SRC/meshes/4C2_*.STL $DST/meshes/
+cp $SRC/urdf/jaw.urdf.xacro $DST/urdf/
 
 # 메시 경로를 rm_description 기준으로 변경
-합sed -i 's|package://rm_Lifting_robot_75B_jaw_description/meshes/|package://rm_description/meshes/|' \
-   니$DST/urdf/jaw.urdf.xacro
+sed -i 's|package://rm_Lifting_robot_75B_jaw_description/meshes/|package://rm_description/meshes/|' \
+   $DST/urdf/jaw.urdf.xacro
 
 # 확인: 경로가 바뀌었는지, STL이 7개인지
-다grep mesh_path $DST/urdf/jaw.urdf.xacro   # package://rm_description/meshes/ 로 바뀌어야 함
+grep mesh_path $DST/urdf/jaw.urdf.xacro   # package://rm_description/meshes/ 로 바뀌어야 함
 ls $DST/meshes/4C2_*.STL | wc -l          # 7 이 나와야 함
 ```
 
