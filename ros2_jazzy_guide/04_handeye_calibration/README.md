@@ -308,8 +308,15 @@ python3 diagnose_calibration.py
 진단이 통과하면 계산한다. **결과는 회차별 파일로 남긴다** (나중에 비교하기 위해):
 
 ```bash
-python3 compute_in_hand.py | tee calibration_result_$(date +%m%d).txt
+python3 compute_in_hand.py 2>&1 | tee calibration_result_$(date +%m%d).txt
+
+grep -n "회전행렬" calibration_result_*.txt    # 내용이 들어갔는지 확인
 ```
+
+> ⚠️ **`2>&1`을 빼면 파일이 비어서 저장된다.** `compute_in_hand.py`는 결과를 로거로
+> 출력하는데 로그는 **stderr**로 나가고 `| tee`는 stdout만 잡기 때문이다.
+> 화면에는 멀쩡히 보이는데 파일만 비는 형태라 알아채기 어렵다 —
+> 저장 직후 위 `grep`으로 반드시 확인할 것.
 
 출력에서 쓸 것은 셋이다:
 
@@ -344,21 +351,33 @@ camera → checkerboard    : checkerboard_tf_publisher.py  (실시간 보드 검
 ### 6-2. static TF 명령 만들기
 
 ```bash
-gedit make_tf_cmd.py
-```
-
-파일 상단의 `R`(회전행렬)과 `t`(병진벡터)를 **5-2에서 방금 계산한 값으로 교체**하고 실행:
-
-```bash
 python3 make_tf_cmd.py
 ```
 
-`ros2 run tf2_ros static_transform_publisher ...` 명령 한 줄이 출력된다. 복사해 둔다.
+인자 없이 실행하면 **가장 최근 `calibration_result_*.txt`를 자동으로 읽는다.**
+특정 파일을 쓰려면 `python3 make_tf_cmd.py calibration_result_0810.txt`.
 
-> ⚠️ **이 파일은 값이 하드코딩되어 있어서, 재계산할 때마다 갱신을 잊기 쉽다.**
-> (작성자도 잊었다.) 검증 결과가 이상하게 나쁘면 **static TF에 옛날 값이 들어가지
-> 않았는지부터** 확인하라. 출력된 명령의 `--x` 값과 `calibration_result_*.txt`의
-> 병진벡터 첫 값이 일치해야 한다.
+출력은 세 부분이다:
+
+```
+[타당성 점검]
+  기대 장착 자세(z축 -90도)와의 차이: 1.32 deg
+  카메라까지의 거리: 106.5 mm
+  이상 없음
+
+[static TF 명령] ...          ← 복사해서 터미널2에 붙여넣는다
+[05에서 쓸 값] ...            ← 05에서 T_ee_cam으로 쓴다
+```
+
+**타당성 점검을 먼저 읽자.** 기대 장착 자세와의 차이가 5도를 넘거나 카메라 거리가
+자로 잰 값과 크게 다르면 경고가 뜬다 — 그 상태로 검증해 봐야 시간만 버린다.
+
+> 💡 이 스크립트는 결과 파일을 직접 읽으므로 **값을 손으로 옮겨 적지 않는다.**
+> 원본(RealMan 저장소)은 행렬이 하드코딩되어 있어 재계산 후 갱신을 잊고
+> **옛 값으로 검증하는 사고**가 실제로 있었다. 그래도 검증 결과가 이상하게 나쁘면
+> 터미널2의 `--x` 값과 `[05에서 쓸 값]`의 첫 숫자가 같은지 확인하라.
+>
+> 장착 방향이 다른 카메라를 쓴다면 스크립트 상단의 `EXPECTED_ROTATION`을 수정한다.
 
 ### 6-3. 4터미널 검증 실행
 
@@ -404,8 +423,12 @@ ros2 run tf2_ros tf2_echo base_link checkerboard    # 값이 나오면 사슬 �
 **측정 방법** — 터미널4에서, 팔을 드래그 티칭으로 **크게 다른 자세**로 옮기고 →
 **2~3초 정지** → Enter. 8~10회 반복 후 `q`.
 
-> 💡 종료 시 `terminate called without an active exception / Aborted (core dumped)`가
-> 뜨지만 **결과는 이미 출력된 뒤다 — 무시한다** (스레드 정리 순서 문제로, 측정값에는 영향 없음).
+> 💡 결과는 화면에 출력되는 동시에 **`verify_result_<날짜시각>.txt`로 저장**된다 —
+> 회차별로 비교할 때 쓴다 (6-5 참고).
+>
+> 원본 스크립트는 종료 시 `terminate called without an active exception /
+> Aborted (core dumped)`를 뱉었다(결과에는 영향 없음). 저장소의 수정본은
+> spin 스레드를 정리하도록 고쳐 이 메시지가 나오지 않는다.
 
 ### 6-4. 판정
 
@@ -479,6 +502,8 @@ ros2 run tf2_ros tf2_echo base_link checkerboard    # 값이 나오면 사슬 �
 |---|---|
 | `RealSense devices: 0` | USB 재연결 · 3.0 포트인지 · `realsense-viewer`로 원점 확인 |
 | `pip install -r requirements.txt` 충돌 | 3-3의 pyrealsense2 버전 sed를 먼저 했는지 |
+| `make_tf_cmd.py`가 "회전행렬을 찾지 못했습니다" | 결과 파일이 비었다 — `2>&1`을 빼고 저장했을 가능성 (5-2) |
+| `make_tf_cmd.py`가 옛 값을 출력함 | 스크립트를 새 버전으로 교체했는지 (`[타당성 점검]` 문구가 나오면 새 버전) |
 | colcon 빌드가 이상하게 깨짐 | **venv가 켜진 채 빌드했는지** — `deactivate` 후 재시도 |
 | `collect_data.py` 로봇 연결 실패 | `rm_driver`가 떠 있는지 (`ros2 node list`) · 로봇 전원 · ping |
 | 수집 로그에 `오류 코드 8193` | 정상 — pose는 오고 있으므로 무시 |
