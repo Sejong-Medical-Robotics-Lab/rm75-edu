@@ -1,4 +1,4 @@
-# 04_hand_eye / scripts
+# 04_handeye_calibration / scripts
 
 04 문서에서 사용하는 스크립트 모음이다.
 **모두 `~/robot_vision/` 아래에 복사해 사용한다** (colcon 패키지가 아니다).
@@ -21,7 +21,7 @@
 
 ```bash
 # 04 문서 3-3에서 hand_eye_calibration을 clone한 뒤
-cd ~/rm75-edu/ros2_jazzy_guide/04_hand_eye/scripts
+cd ~/rm75-edu/ros2_jazzy_guide/04_handeye_calibration/scripts
 
 cp test_realsense.py test_yolo.py get_3d_coord.py \
    rm_tf_publisher.py rm_joint_publisher.py ~/robot_vision/

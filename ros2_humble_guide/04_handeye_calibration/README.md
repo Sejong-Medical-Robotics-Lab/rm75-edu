@@ -147,7 +147,7 @@ print('imports OK')
 ### 2-2. 단계별 테스트 — 카메라 → YOLO → 3D 좌표
 
 한 번에 다 돌리지 말고 **세 단계로 나눠** 어디까지 되는지 확인하며 간다.
-스크립트는 저장소의 `04_hand_eye/scripts/`에 있다 (Jazzy 가이드와 **동일한 파일**이다). `~/robot_vision/`에 복사해 사용한다.
+스크립트는 저장소의 `04_handeye_calibration/scripts/`에 있다 (Jazzy 가이드와 **동일한 파일**이다). `~/robot_vision/`에 복사해 사용한다.
 
 | 스크립트 | 확인하는 것 |
 |---|---|
@@ -493,7 +493,7 @@ ros2 run tf2_ros tf2_echo base_link checkerboard    # 값이 나오면 사슬 �
 숫자가 아니라 눈으로 보고 싶으면: `rm_joint_publisher.py`(관절각 발행) +
 `robot_state_publisher`(01의 `rm_description` 사용) + static TF + 체커보드 TF + RViz를 띄우면
 로봇 모델 위에 카메라·체커보드 프레임이 그려진다. 팔을 움직여도 체커보드 프레임이
-제자리에 있으면 성공이다. 상세 절차는 `04_hand_eye/scripts/README`를 참고.
+제자리에 있으면 성공이다. 상세 절차는 `04_handeye_calibration/scripts/README`를 참고.
 
 ---
 
