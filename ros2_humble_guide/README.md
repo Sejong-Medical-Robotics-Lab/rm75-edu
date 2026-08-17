@@ -10,7 +10,7 @@
 |---|---|
 | OS | Ubuntu 22.04 |
 | ROS2 | Humble |
-| 로봇 | RealMan RM75 (7자유도 협동 로봇 팔) |
+| 로봇 | RealMan RM75 (7자유도 협동 로봇 팔, RM75-BI / 컨트롤러 v3) |
 | 그리퍼 | Inspire EG2-4C2 (2지 병렬) |
 | 카메라 | Intel RealSense D435 (04부터, 팔 말단 장착) |
 | 시뮬레이터 | **새 Gazebo (gz sim)** + MoveIt2 demo (RViz) |
@@ -36,13 +36,16 @@
 | 2 | [02_simulation](02_simulation/README.md) | 시뮬레이션 — EG2-4C2 그리퍼 모델 결합 → 모델/Gazebo 실행 → MoveIt2 실습 → 토픽·서비스·액션 |
 | 3 | [03_practice](03_practice/README.md) | 실기체 — 네트워크 설정 → 토픽·서비스·액션 → 직접 교시 → 기본 모션 명령(MoveJ·L·J_P) → MoveIt2 → 픽앤플레이스 |
 | 4 | [04_handeye_calibration](04_handeye_calibration/README.md) | 비전 준비 — 뎁스카메라 테스트 → YOLO 3D 좌표 → Eye-in-Hand 캘리브레이션 → 진단·검증 |
+| 5 | [05_vision_grasp](05_vision_grasp/README.md) | 비전 파지 — 좌표 변환 검증(A→B→C) → 카메라 좌표로 파지 |
+| 6 | [06_moveit_grasp](06_moveit_grasp/README.md) | MoveIt 통합 — Scene 등록(D) → 비전 결합(E) → 장애물 회피 실증(F) |
 
 ### 스크립트
 
 | 위치 | 내용 |
 |---|---|
-| [scripts/](scripts/) | 시뮬레이션 픽앤플레이스 (`pick_place.py`, `grasp_test.py`) — 02에서 만든 `rm_75_jaw_config` 위에서 동작 |
 | [04_handeye_calibration/scripts/](04_handeye_calibration/scripts/) | 비전·캘리브레이션 12개 — `~/robot_vision/`에 복사해 사용 (venv 필요) |
+| [05_vision_grasp/scripts/](05_vision_grasp/scripts/) | 비전 파지 검증 3개 (A 정적 → B 접근 → C 파지) |
+| [06_moveit_grasp/scripts/](06_moveit_grasp/scripts/) | MoveIt 통합 3개 (D 프리미티브 → E 비전 결합 → F 장애물 도구) |
 
 ## 전 과정 공통 원칙
 
@@ -66,8 +69,10 @@
 |---|---|---|
 | 01_setup | 실기체 검증 완료 | **미검증** — 특히 3절 Gazebo 패키지명 |
 | 02_simulation | 실기체 검증 완료 | **미검증** |
-| 03_practice | 실기체 검증 완료 (6단계 내려놓기·연속 실행 제외) | **미검증** |
-| 04_handeye_calibration | 실기체 검증 완료 (캘리브레이션 오차 6.9 mm) | **미검증** — 스크립트는 배포판 무관 확인 |
+| 03_practice | 실기체 검증 완료 (연속 실행 제외) | **미검증** |
+| 04_handeye_calibration | 실기체 검증 완료 (오차 6.9 mm) | **미검증** — 스크립트는 배포판 무관 확인 |
+| 05_vision_grasp | 실기체 검증 완료 (좌·중·우 파지) | **미검증** — 스크립트는 배포판 무관 확인 |
+| 06_moveit_grasp | 실기체 검증 완료 (D·E·F) | **미검증** — moveit_msgs 필드 호환 첫 실행 시 확인 |
 
 > Humble 환경에서 문서와 다르게 동작하는 부분을 발견하면 **멘토에게 공유**해 주세요.
 > 그 기록이 다음 기수의 가이드가 됩니다.
