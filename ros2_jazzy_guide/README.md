@@ -35,13 +35,16 @@
 | 2 | [02_simulation](02_simulation/README.md) | 시뮬레이션 — EG2-4C2 그리퍼 모델 결합 → 모델/Gazebo 실행 → MoveIt2 실습 → 토픽·서비스·액션 |
 | 3 | [03_practice](03_practice/README.md) | 실기체 — 네트워크 설정 → 토픽·서비스·액션 → 직접 교시 → 기본 모션 명령(MoveJ·L·J_P) → MoveIt2 → 픽앤플레이스 |
 | 4 | [04_handeye_calibration](04_handeye_calibration/README.md) | 비전 준비 — 뎁스카메라 테스트 → YOLO 3D 좌표 → Eye-in-Hand 캘리브레이션 → 진단·검증 |
+| 5 | [05_vision_grasp](05_vision_grasp/README.md) | 비전 파지 — 좌표 변환 검증(A→B→C) → 카메라 좌표로 파지 |
+| 6 | [06_moveit_grasp](06_moveit_grasp/README.md) | MoveIt 통합 — Scene 등록(D) → 비전 결합(E) → 장애물 회피 실증(F) |
 
 ### 스크립트
 
 | 위치 | 내용 |
 |---|---|
-| [scripts/](scripts/) | 시뮬레이션 픽앤플레이스 (`pick_place.py`, `grasp_test.py`) — 02에서 만든 `rm_75_jaw_config` 위에서 동작 |
 | [04_handeye_calibration/scripts/](04_handeye_calibration/scripts/) | 비전·캘리브레이션 12개 — `~/robot_vision/`에 복사해 사용 (venv 필요) |
+| [05_vision_grasp/scripts/](05_vision_grasp/scripts/) | 비전 파지 검증 3개 (A 정적 → B 접근 → C 파지) |
+| [06_moveit_grasp/scripts/](06_moveit_grasp/scripts/) | MoveIt 통합 3개 (D 프리미티브 → E 비전 결합 → F 장애물 도구) |
 
 ## 전 과정 공통 원칙
 
@@ -65,8 +68,10 @@
 |---|---|---|
 | 01_setup | 실기체 검증 완료 | apt 목록 충분성(이미 설치된 PC라 미확인) |
 | 02_simulation | 실기체 검증 완료 | — |
-| 03_practice | 실기체 검증 완료 | 6절 6단계(내려놓기), 연속 실행, 손목 파랑 버튼 길게 누름의 기능 |
+| 03_practice | 실기체 검증 완료 | 6절 연속 실행, 손목 파랑 버튼 길게 누름의 기능 (내려놓기는 05에서 검증됨) |
 | 04_handeye_calibration | 실기체 검증 완료 (오차 **6.9 mm**) | `verify_handeye.py` 수정본 실행 확인, venv·CUDA 첫 설치 |
+| 05_vision_grasp | 실기체 검증 완료 (산포 8.2 mm · 절대 4 mm · 좌중우 파지) | 우측 배치 시 y 오차의 정량화 (캘리브레이션 요 잔여 1.32°와의 연관) |
+| 06_moveit_grasp | 실기체 검증 완료 (D·E·F, 내려놓기 포함) | — |
 
 ### 이 환경에서 확인된 주요 사항
 
@@ -74,6 +79,6 @@
 
 - **`/joint_states`의 `velocity`·`effort`는 항상 빈 배열**이다 (컨트롤러 v3 설계). 관절 속도는 `/rm_driver/udp_joint_speed`로 나온다.
 - **실기체 상태 발행은 200 Hz** (`udp_cycle: 5`), 시뮬레이션은 100 Hz.
-- **RViz는 Planning Scene에 물체가 있을 때 인터랙티브 조작(마커·박스 드래그)에서 종료될 수 있다.** 실기체(bringup)에서 특히 빈번하다. RViz가 죽어도 팔은 멈추지 않는다.
-- **그리퍼가 간헐적으로 열리지 않는다** (`data: true`인데도). 툴 전원 재인가(0V → 24V)로 복구된다.
-- **`rm_driver`와 캘리브레이션 `collect_data.py`는 동시 실행 불가** (둘 다 8080 포트 사용).
+- **RViz의 Planning Scene 물체는 표시만으로는 안전하다** — 종료는 **인터랙티브 조작**(마커·박스 드래그)에서 난다 (06에서 확인). 실기체에서 Scene은 코드로만 다룬다. RViz가 죽어도 팔은 멈추지 않는다.
+- **그리퍼가 간헐적으로 응답 불능이 된다** (`data: true` 회신조차 없거나, 명령이 무시됨). 툴 전원 재인가(0V → 24V)로 복구된다.
+- **드라이버(bringup 포함)와 SDK 직결 스크립트는 동시 실행 불가** — 둘 다 8080 포트를 쓴다. `collect_data.py`·`rm_tf_publisher.py`가 해당하며, 05·06에서는 로봇 TF를 bringup의 robot_state_publisher가 공급한다.
